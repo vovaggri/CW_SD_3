@@ -1,0 +1,7 @@
+/Users/vladimirgrigoryev/RiderProjects/CW_SD_3/OrderService/obj/Debug/net8.0/OrderService.csproj.AssemblyReference.cache
+/Users/vladimirgrigoryev/RiderProjects/CW_SD_3/OrderService/obj/Debug/net8.0/OrderService.GeneratedMSBuildEditorConfig.editorconfig
+/Users/vladimirgrigoryev/RiderProjects/CW_SD_3/OrderService/obj/Debug/net8.0/OrderService.AssemblyInfoInputs.cache
+/Users/vladimirgrigoryev/RiderProjects/CW_SD_3/OrderService/obj/Debug/net8.0/OrderService.AssemblyInfo.cs
+/Users/vladimirgrigoryev/RiderProjects/CW_SD_3/OrderService/obj/Debug/net8.0/OrderService.csproj.CoreCompileInputs.cache
+/Users/vladimirgrigoryev/RiderProjects/CW_SD_3/OrderService/obj/Debug/net8.0/OrderService.MvcApplicationPartsAssemblyInfo.cs
+/Users/vladimirgrigoryev/RiderProjects/CW_SD_3/OrderService/obj/Debug/net8.0/OrderService.MvcApplicationPartsAssemblyInfo.cache
