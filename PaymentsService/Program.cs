@@ -1,51 +1,42 @@
-namespace PaymentsService;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.SqlServer;
+using Microsoft.Extensions.Options;
+using RabbitMQ.Client;
+using PaymentsService.Data;
+using PaymentsService.Settings;
+using PaymentsService.Services;
 
-public class Program
-{
-    public static void Main(string[] args)
-    {
-        var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-        // Add services to the container.
-        builder.Services.AddAuthorization();
+// 1) EF Core
+builder.Services.AddDbContext<PaymentDbContext>(opts =>
+    opts.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-        // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-        builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+// 2) Controllers + Swagger
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-        var app = builder.Build();
+// 3) Настройки RabbitMQ
+builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMq"));
 
-        // Configure the HTTP request pipeline.
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseSwagger();
-            app.UseSwaggerUI();
-        }
+// 4) DI RabbitMQ: фабрика, соединение и канал
+builder.Services.AddSingleton<IConnectionFactory>(sp => {
+    var s = sp.GetRequiredService<IOptions<RabbitMqSettings>>().Value;
+    return new ConnectionFactory { HostName = s.Host };
+});
+builder.Services.AddSingleton(sp =>
+    sp.GetRequiredService<IConnectionFactory>().CreateConnection());
+builder.Services.AddSingleton(sp =>
+    sp.GetRequiredService<IConnection>().CreateModel());
 
-        app.UseHttpsRedirection();
+// 5) Фоновые сервисы
+builder.Services.AddHostedService<PaymentConsumer>();
+builder.Services.AddHostedService<OutboxPublisher>();
 
-        app.UseAuthorization();
+var app = builder.Build();
 
-        var summaries = new[]
-        {
-            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-        };
-
-        app.MapGet("/weatherforecast", (HttpContext httpContext) =>
-            {
-                var forecast = Enumerable.Range(1, 5).Select(index =>
-                        new WeatherForecast
-                        {
-                            Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                            TemperatureC = Random.Shared.Next(-20, 55),
-                            Summary = summaries[Random.Shared.Next(summaries.Length)]
-                        })
-                    .ToArray();
-                return forecast;
-            })
-            .WithName("GetWeatherForecast")
-            .WithOpenApi();
-
-        app.Run();
-    }
-}
+app.UseSwagger();
+app.UseSwaggerUI();
+app.MapControllers();
+app.Run();

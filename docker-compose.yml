@@ -1,0 +1,86 @@
+version: "3.8"
+
+services:
+  sqlserver-orders:
+    image: mcr.microsoft.com/azure-sql-edge
+    platform: linux/amd64   # <- пропускаем через эмуляцию, там есть sqlcmd
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Your_password123"   # <- не SA_PASSWORD, а MSSQL_SA_PASSWORD
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost,1433 -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    ports:
+      - "1433:1433"
+
+  sqlserver-payments:
+    image: mcr.microsoft.com/azure-sql-edge
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Your_password123"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost,1433 -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    ports:
+      - "1434:1433"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  orders-service:
+    build: ./OrderService
+    depends_on:
+      - rabbitmq
+      - sqlserver-orders
+    environment:
+      ConnectionStrings__DefaultConnection: >
+        Server=sqlserver-orders,1433;
+        Database=OrdersDb;
+        User Id=sa;
+        Password=Your_password123;
+      RabbitMq__Host: rabbitmq
+      RabbitMq__QueueName: order-events
+    ports:
+      - "5001:80"
+
+  payments-service:
+    build: ./PaymentsService
+    depends_on:
+      - rabbitmq
+      - sqlserver-payments
+    environment:
+      ConnectionStrings__DefaultConnection: >
+        Server=sqlserver-payments,1433;
+        Database=PaymentsDb;
+        User Id=sa;
+        Password=Your_password123;
+        TrustServerCertificate=True;
+      RabbitMq__Host: rabbitmq
+      RabbitMq__InQueue: order-events
+      RabbitMq__OutQueue: payment-events
+    ports:
+      - "5002:80"
+
+  api-gateway:
+    build: ./ApiGateway
+    depends_on:
+      - orders-service
+      - payments-service
+    ports:
+      - "5003:80"

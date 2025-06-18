@@ -2,6 +2,6 @@ namespace OrderService.Settings;
 
 public class RabbitMqSettings
 {
-    public string Host { get; set; } = null!;
-    public string QueueName { get; set; } = null!;
+    public required string Host { get; set; }
+    public required string QueueName { get; set; }
 }
