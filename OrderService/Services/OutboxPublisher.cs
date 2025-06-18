@@ -16,24 +16,25 @@ namespace OrderService.Services
     public class OutboxPublisher : BackgroundService
     {
         private readonly IServiceScopeFactory _scopeFactory;
-        private readonly IModel _channel; 
+        private readonly IModel _channel;
         private readonly string _queueName;
 
         public OutboxPublisher(
             IServiceScopeFactory scopeFactory,
-            IModel channel, 
+            IModel channel,
             IOptions<RabbitMqSettings> options)
         {
             _scopeFactory = scopeFactory;
-            _channel = channel;
-            _queueName = options.Value.QueueName;
+            _channel      = channel;
+            _queueName    = options.Value.QueueName;
 
+            // объявляем очередь, если её нет
             _channel.QueueDeclare(
                 queue: _queueName,
-                durable: true,
-                exclusive: false,
+                durable:    true,
+                exclusive:  false,
                 autoDelete: false,
-                arguments: null
+                arguments:  null
             );
         }
 
@@ -41,35 +42,37 @@ namespace OrderService.Services
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                using (var scope = _scopeFactory.CreateScope())
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+
+                // выбираем непросмотренные события
+                var batch = await db.Outbox
+                    .Where(x => !x.Published)
+                    .OrderBy(x => x.OccurredAt)
+                    .Take(20)
+                    .ToListAsync(stoppingToken);
+
+                if (batch.Any())
                 {
-                    var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-
-                    var batch = await db.Outbox
-                        .Where(x => !x.Published)
-                        .OrderBy(x => x.OccurredAt)
-                        .Take(20)
-                        .ToListAsync(stoppingToken); 
-
-                    if (batch.Any())
+                    foreach (var msg in batch)
                     {
-                        foreach (var msg in batch)
-                        {
-                            var body = Encoding.UTF8.GetBytes(msg.Payload);
-                            var properties = _channel.CreateBasicProperties();
-                            properties.Persistent = true;
+                        var body = Encoding.UTF8.GetBytes(msg.Payload);
+                        var props = _channel.CreateBasicProperties();
+                        props.Persistent = true;
+                        props.MessageId  = msg.Id.ToString();
+                        props.Type       = msg.EventType;
 
-                            _channel.BasicPublish(
-                                exchange: string.Empty,
-                                routingKey: _queueName,
-                                basicProperties: properties,
-                                body: body
-                            );
-                            msg.Published = true;
-                        }
+                        _channel.BasicPublish(
+                            exchange:       string.Empty,
+                            routingKey:     _queueName,
+                            basicProperties: props,
+                            body:           body
+                        );
 
-                        await db.SaveChangesAsync(stoppingToken);
+                        msg.Published = true;
                     }
+
+                    await db.SaveChangesAsync(stoppingToken);
                 }
 
                 await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);

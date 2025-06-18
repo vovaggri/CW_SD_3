@@ -1,35 +1,37 @@
-version: "3.8"
-
 services:
-  sqlserver-orders:
-    image: mcr.microsoft.com/azure-sql-edge
-    platform: linux/amd64   # <- пропускаем через эмуляцию, там есть sqlcmd
+  postgres-orders:
+    image: postgres:15
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Your_password123"   # <- не SA_PASSWORD, а MSSQL_SA_PASSWORD
+      POSTGRES_DB: ordersdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "Your_password123"
+    volumes:
+      - orders-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost,1433 -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\""]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ordersdb"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 30s
     ports:
-      - "1433:1433"
+      - "5434:5432"
 
-  sqlserver-payments:
-    image: mcr.microsoft.com/azure-sql-edge
-    platform: linux/amd64
+  postgres-payments:
+    image: postgres:15
     environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Your_password123"
+      POSTGRES_DB: paymentsdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "Your_password123"
+    volumes:
+      - payments-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost,1433 -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q \"SELECT 1\""]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paymentsdb"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 30s
     ports:
-      - "1434:1433"
+      - "5433:5432"
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -46,13 +48,17 @@ services:
   orders-service:
     build: ./OrderService
     depends_on:
-      - rabbitmq
-      - sqlserver-orders
+      postgres-orders:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
+      ASPNETCORE_URLS: "http://+:80"
       ConnectionStrings__DefaultConnection: >
-        Server=sqlserver-orders,1433;
-        Database=OrdersDb;
-        User Id=sa;
+        Host=postgres-orders;
+        Port=5432;
+        Database=ordersdb;
+        Username=postgres;
         Password=Your_password123;
       RabbitMq__Host: rabbitmq
       RabbitMq__QueueName: order-events
@@ -62,15 +68,18 @@ services:
   payments-service:
     build: ./PaymentsService
     depends_on:
-      - rabbitmq
-      - sqlserver-payments
+      postgres-payments:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
+      ASPNETCORE_URLS: "http://+:80"
       ConnectionStrings__DefaultConnection: >
-        Server=sqlserver-payments,1433;
-        Database=PaymentsDb;
-        User Id=sa;
+        Host=postgres-payments;
+        Port=5432;
+        Database=paymentsdb;
+        Username=postgres;
         Password=Your_password123;
-        TrustServerCertificate=True;
       RabbitMq__Host: rabbitmq
       RabbitMq__InQueue: order-events
       RabbitMq__OutQueue: payment-events
@@ -82,5 +91,11 @@ services:
     depends_on:
       - orders-service
       - payments-service
+    environment:
+      ASPNETCORE_URLS: "http://+:80"
     ports:
       - "5003:80"
+
+volumes:
+  orders-db-data:
+  payments-db-data:

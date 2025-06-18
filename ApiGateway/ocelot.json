@@ -1,26 +1,49 @@
 {
   "Routes": [
     {
-      "DownstreamPathTemplate": "/api/orders/{everything}",
+      "DownstreamPathTemplate": "/api/orders/{**everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         { "Host": "orders-service", "Port": 80 }
       ],
-      "UpstreamPathTemplate": "/orders/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+      "UpstreamPathTemplate": "/orders/{**everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "SwaggerKey": "orders"
     },
     {
-      "DownstreamPathTemplate": "/api/accounts/{everything}",
+      "DownstreamPathTemplate": "/api/accounts/{**everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
         { "Host": "payments-service", "Port": 80 }
       ],
-      "UpstreamPathTemplate": "/accounts/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT" ]
+      "UpstreamPathTemplate": "/accounts/{**everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT" ],
+      "SwaggerKey": "payments"
     }
   ],
   "GlobalConfiguration": {
-    "RequestIdKey": "OcRequestId",
-    "BaseUrl": "http://localhost:5000"
-  }
+    "BaseUrl": "http://localhost:5003"
+  },
+  "SwaggerEndPoints": [
+    {
+      "Key": "orders",
+      "Config": [
+        {
+          "Name": "Orders API v1",
+          "Version": "v1",
+          "Url": "http://orders-service:80/swagger/v1/swagger.json"
+        }
+      ]
+    },
+    {
+      "Key": "payments",
+      "Config": [
+        {
+          "Name": "Payments API v1",
+          "Version": "v1",
+          "Url": "http://payments-service:80/swagger/v1/swagger.json"
+        }
+      ]
+    }
+  ]
 }

@@ -21,15 +21,21 @@ namespace PaymentsService.Services
         private readonly string _outQueue;
 
         public OutboxPublisher(
-            IServiceScopeFactory       scopeFactory,
-            IModel                     channel,
+            IServiceScopeFactory scopeFactory,
+            IModel channel,
             IOptions<RabbitMqSettings> opts)
         {
             _scopeFactory = scopeFactory;
-            _channel      = channel;
-            _outQueue     = opts.Value.OutQueue;
+            _channel = channel;
+            _outQueue = opts.Value.OutQueue;
 
-            _channel.QueueDeclare(_outQueue, durable: true, exclusive: false, autoDelete: false, arguments: null);
+            _channel.QueueDeclare(
+                queue: _outQueue,
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: null
+            );
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -50,13 +56,21 @@ namespace PaymentsService.Services
                     foreach (var msg in batch)
                     {
                         var body = Encoding.UTF8.GetBytes(msg.Payload);
+                        var props = _channel.CreateBasicProperties();
+                        props.Persistent = true;
+                        props.MessageId = msg.Id.ToString();
+                        props.Type = msg.EventType;
+
                         _channel.BasicPublish(
-                            exchange:       "",
-                            routingKey:     _outQueue,
-                            basicProperties:null,
-                            body:           body);
+                            exchange: string.Empty,
+                            routingKey: _outQueue,
+                            basicProperties: props,
+                            body: body
+                        );
+
                         msg.Published = true;
                     }
+
                     await db.SaveChangesAsync(stoppingToken);
                 }
 
