@@ -29,7 +29,11 @@ public class GatewayController : ControllerBase
     public async Task<IActionResult> GetAllOrders()
     {
         var resp = await _client.GetAsync($"{_urls.OrdersService}/api/order");
-        return Ok(await resp.Content.ReadFromJsonAsync<IEnumerable<OrderSummaryDto>>());
+        if (!resp.IsSuccessStatusCode)
+            return StatusCode((int)resp.StatusCode, await resp.Content.ReadAsStringAsync());
+
+        var list = await resp.Content.ReadFromJsonAsync<IEnumerable<OrderSummaryDto>>();
+        return Ok(list);
     }
 
     [HttpGet("orders/{id:guid}")]
@@ -38,7 +42,9 @@ public class GatewayController : ControllerBase
         var resp = await _client.GetAsync($"{_urls.OrdersService}/api/order/{id}");
         if (resp.StatusCode == HttpStatusCode.NotFound)
             return NotFound();
-        return Ok(await resp.Content.ReadFromJsonAsync<OrderSummaryDto>());
+
+        var dto = await resp.Content.ReadFromJsonAsync<OrderSummaryDto>();
+        return Ok(dto);
     }
 
     // === ACCOUNTS ===
@@ -68,7 +74,7 @@ public class GatewayController : ControllerBase
 
 // DTO-классы для GatewayController
 public record CreateOrderDto(int UserId, decimal Amount, string Description);
-public record OrderSummaryDto(Guid Id, int UserId, decimal Amount, string Description, string Status, DateTime CreatedAt);
+public record OrderSummaryDto(Guid Id, int UserId, decimal Amount, string Description, OrderStatus Status, DateTime CreatedAt);
 
 public record CreateAccountDto(int UserId);
 public record DepositDto(decimal Amount);

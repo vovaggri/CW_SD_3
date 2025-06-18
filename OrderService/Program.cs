@@ -1,22 +1,24 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using RabbitMQ.Client;
 using OrderService.Data;
 using OrderService.Services;
 using OrderService.Settings;
+using RabbitMqSettings = OrderService.Settings.RabbitMqSettings;
+using RabbitMQ.Client;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1) Подключаем EF Core + PostgreSQL
-builder.Services.AddDbContext<OrderDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// 1) EF Core + PostgreSQL
+builder.Services.AddDbContext<OrderDbContext>(opt =>
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 2) Добавляем контроллеры и Swagger
+// 2) Controllers + Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpClient();
 
-// 3) Конфигурируем настройки RabbitMQ
+// 3) Считаем настройки RabbitMq (теперь с двумя полями!)
 builder.Services.Configure<RabbitMqSettings>(builder.Configuration.GetSection("RabbitMq"));
 
 // 4) Регистрируем фабрику и канал RabbitMQ
@@ -30,27 +32,21 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddSingleton(sp =>
     sp.GetRequiredService<IConnection>().CreateModel());
 
-// 5) Регистрируем фоновые сервисы: OutboxPublisher и PaymentConsumer
+// 5) Фоновые сервисы: OutboxPublisher и потребитель платежей
 builder.Services.AddHostedService<OutboxPublisher>();
 builder.Services.AddHostedService<PaymentConsumer>();
 
 var app = builder.Build();
 
-// 6) Гарантированно применяем миграции при старте
+// 6) Применяем миграции автоматически
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
     db.Database.Migrate();
 }
 
-// 7) Swagger в Development
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
-// 8) Маршрутизация контроллеров
 app.MapControllers();
-
 app.Run();

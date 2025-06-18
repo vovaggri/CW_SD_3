@@ -43,12 +43,9 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-// 7) Swagger в Development
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// 7) Swagger
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // 8) Маршрутизация контроллеров
 app.MapControllers();
